@@ -8,7 +8,6 @@
 struct cqueue {
         int elm_cnt;
         int elm_size;
-        int cnt;
         unsigned long head;
         unsigned long wtail;
         unsigned long tail;
@@ -72,8 +71,6 @@ struct cqueue *cqueue_create(int cnt, int elm_size)
 
 int cqueue_push(struct cqueue *queue, const void *elm)
 {
-        static int dbg = 0;
-        unsigned long dbg_wtail;
         unsigned long last_wtail;
         unsigned long wtail;
  
@@ -91,18 +88,14 @@ int cqueue_push(struct cqueue *queue, const void *elm)
                         break;
         } while (1);
  
+        last_wtail = INDEX_ROUND(wtail, queue->elm_cnt);
         wtail++;
-        last_wtail = INDEX_ROUND(wtail - 1, queue->elm_cnt);
-        dbg_wtail = INDEX_ROUND(wtail, queue->elm_cnt);
+        wtail = INDEX_ROUND(wtail, queue->elm_cnt);
 
-        memcpy(&queue->buff[dbg_wtail * queue->elm_size], elm, queue->elm_size);
+        memcpy(&queue->buff[wtail* queue->elm_size], elm, queue->elm_size);
 
-        InterlockedIncrement((unsigned long *)&dbg);
 
-        InterlockedIncrement((unsigned long *)&queue->cnt);
-        //printf("increment-->%d\n", queue->cnt);
-
-        while (InterlockedCompareExchange(&queue->tail, dbg_wtail, last_wtail) != last_wtail)
+        while (InterlockedCompareExchange(&queue->tail, wtail, last_wtail) != last_wtail)
                 ;
 
         return 0;
@@ -110,9 +103,6 @@ int cqueue_push(struct cqueue *queue, const void *elm)
 
 int cqueue_pop(struct cqueue *queue, void *elm)
 {
-        static int dbg = 0;
-        int dbg1;
-
         unsigned long head;
         assert(queue);
         assert(elm);
@@ -128,16 +118,11 @@ int cqueue_pop(struct cqueue *queue, void *elm)
                 }
         }
         
-        dbg1= queue->head;
         queue->head = INDEX_ROUND(queue->head + 1, queue->elm_cnt);
         head = queue->head;
         memcpy(elm, &queue->buff[head * queue->elm_size], queue->elm_size);
 
         __unlock__(queue);
-
-        InterlockedDecrement((unsigned long *)&queue->cnt);
-        //printf("decrement-->%d\n", queue->cnt);
-        InterlockedIncrement((unsigned long *)&dbg);
 
         return 0;
 }
